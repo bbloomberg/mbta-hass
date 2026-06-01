@@ -92,18 +92,33 @@ entity: sensor.park_street_next_departure
 
 All options:
 
-| Option         | Default                            | Description                                                        |
-| -------------- | ---------------------------------- | ------------------------------------------------------------------ |
-| `entity`       | _(required)_                       | The stop's `*_next_departure` sensor.                              |
-| `alert_entity` | derived from `entity`              | The stop's `*_service_alert` binary sensor (for the alert banner). |
-| `title`        | stop name                          | Board heading.                                                     |
-| `rows`         | `6`                                | Max departures to show. Increase the **Upcoming departures** option if you want more than 5. |
-| `show_alerts`  | `true`                             | Show the scrolling alert banner when an alert is active.           |
-| `show_clock`   | `true`                             | Show the current time in the header.                               |
+| Option            | Default               | Description                                                                                      |
+| ----------------- | --------------------- | ------------------------------------------------------------------------------------------------ |
+| `entity`          | _(required)_          | The stop's `*_next_departure` sensor.                                                            |
+| `alert_entity`    | derived from `entity` | The stop's `*_service_alert` binary sensor (for the alert banner).                              |
+| `title`           | stop name             | Board heading.                                                                                    |
+| `per_destination` | `0`                   | If `> 0`, group by destination and show this many departures **per destination** (e.g. `3` → 3 for Harvard, 3 for Nubian). `0` = a single combined list. |
+| `rows`            | `6`                   | Max rows in the combined (flat) list. Ignored when `per_destination` is set. Increase the **Upcoming departures** integration option if you want more than 5 predictions. |
+| `routes`          | all                   | List of routes to show (by name or id, e.g. `[Red Line, 1]`). Empty shows all.                  |
+| `destinations`    | all                   | List of destinations/headsigns to show (e.g. `[Harvard, Nubian]`). Empty shows all.             |
+| `show_alerts`     | `true`                | Show the scrolling alert banner when an alert is active.                                          |
+| `show_clock`      | `true`                | Show the current time in the header.                                                             |
+
+`per_destination`, `routes`, and `destinations` make it easy to always see the
+next few trains for **every** destination at a stop — for example, on Sidney St
+@ #1 you can show the next 3 toward Harvard and the next 3 toward Nubian at once:
+
+```yaml
+type: custom:mbta-arrival-board-card
+entity: sensor.sidney_st_1_next_departure
+per_destination: 3
+```
 
 Route badges are colored by MBTA line (Red/Orange/Blue/Green branches, purple
 Commuter Rail, teal ferry, yellow bus); countdowns show `ARR`/live status in
-green and `CXL` for cancellations.
+green and `CXL` for cancellations. The departures board and the alert banner
+refresh independently, so updating arrival times never restarts the alert
+banner's scroll — it only re-scrolls when the alert text itself changes.
 
 ## Example automation — alert me when my stop is delayed
 

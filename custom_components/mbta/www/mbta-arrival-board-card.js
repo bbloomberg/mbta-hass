@@ -8,16 +8,25 @@
  *   entity: sensor.park_street_next_departure
  *   alert_entity: binary_sensor.park_street_service_alert   # optional
  *   title: Park Street                                       # optional
- *   rows: 6                                                  # optional
- *   show_alerts: true                                        # optional
- *   show_clock: true                                         # optional
+ *   rows: 6                 # max rows in flat mode
+ *   per_destination: 3      # group by destination, N each (0 = flat list)
+ *   routes: [Red Line, 1]   # only show these routes (empty = all)
+ *   destinations: [Harvard, Nubian]   # only show these destinations (empty = all)
+ *   show_alerts: true
+ *   show_clock: true
+ *
+ * The departures board and the alert banner are rendered into separate DOM
+ * nodes and each is rebuilt only when its own content changes, so a departure
+ * refresh never restarts the alert marquee.
  */
 
 const VIEW_W = 520;
 const HEADER_H = 56;
 const ROW_H = 46;
-const ALERT_H = 34;
-const PAD = 16;
+const ALERT_PANEL_H = 40;
+const PAD = 12;
+const GROUP_CAP = 24; // safety cap on total rows when grouping by destination
+const MONO = "'DejaVu Sans Mono','Roboto Mono',ui-monospace,monospace";
 
 const LINE_COLORS = {
   Red: "#DA291C",
@@ -44,20 +53,14 @@ const BADGE_TEXT = {
 
 let INSTANCE = 0;
 
-// Schema for the visual (UI) editor, rendered with Home Assistant's <ha-form>.
-const EDITOR_SCHEMA = [
-  { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
-  { name: "title", selector: { text: {} } },
-  { name: "alert_entity", selector: { entity: { domain: "binary_sensor" } } },
-  { name: "rows", selector: { number: { min: 1, max: 20, mode: "box" } } },
-  { name: "show_alerts", selector: { boolean: {} } },
-  { name: "show_clock", selector: { boolean: {} } },
-];
 const EDITOR_LABELS = {
   entity: "Departure sensor (required)",
   title: "Title (defaults to the stop name)",
   alert_entity: "Alert binary sensor (optional)",
-  rows: "Rows to show",
+  routes: "Routes to show (empty = all)",
+  destinations: "Destinations to show (empty = all)",
+  per_destination: "Per-destination count (0 = single combined list)",
+  rows: "Max rows (flat mode)",
   show_alerts: "Show alert banner",
   show_clock: "Show clock",
 };
@@ -68,6 +71,10 @@ function escapeXml(s) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function uniq(arr) {
+  return [...new Set(arr)];
 }
 
 function routeColor(d) {
@@ -106,6 +113,10 @@ function timeInfo(d) {
   return { text: `${d.minutes} MIN`, color: "#FFB000" };
 }
 
+function sortKey(d) {
+  return d && d.minutes != null ? d.minutes : Number.POSITIVE_INFINITY;
+}
+
 class MbtaArrivalBoardCard extends HTMLElement {
   constructor() {
     super();
@@ -113,6 +124,10 @@ class MbtaArrivalBoardCard extends HTMLElement {
     this._config = {};
     this._hass = null;
     this._clockTimer = null;
+    this._boardSig = null;
+    this._alertText = null;
+    this._alertSeq = 0;
+    this._lastCount = 1;
   }
 
   setConfig(config) {
@@ -121,10 +136,13 @@ class MbtaArrivalBoardCard extends HTMLElement {
     }
     this._config = {
       rows: 6,
+      per_destination: 0,
       show_alerts: true,
       show_clock: true,
       ...config,
     };
+    this._boardSig = null; // force a rebuild on config change
+    this._alertText = null;
     this._render();
   }
 
@@ -134,7 +152,8 @@ class MbtaArrivalBoardCard extends HTMLElement {
   }
 
   connectedCallback() {
-    // Refresh periodically so the clock (and any board styling) stays live.
+    // Keep the clock fresh; the diffing in _render() means this is cheap and
+    // never touches the alert banner.
     this._clockTimer = setInterval(() => this._render(), 30000);
     this._render();
   }
@@ -145,12 +164,11 @@ class MbtaArrivalBoardCard extends HTMLElement {
   }
 
   getCardSize() {
-    return 1 + Math.min(this._config.rows || 6, 6);
+    return 1 + Math.min(this._lastCount, 10);
   }
 
   _alertEntityId() {
     if (this._config.alert_entity) return this._config.alert_entity;
-    // Derive from the departure sensor by convention.
     const e = this._config.entity || "";
     if (e.startsWith("sensor.") && e.endsWith("_next_departure")) {
       return "binary_sensor." + e.slice("sensor.".length).replace(/_next_departure$/, "_service_alert");
@@ -158,73 +176,129 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return null;
   }
 
+  _computeDepartures(stateObj) {
+    const cfg = this._config;
+    let deps = (stateObj && stateObj.attributes.departures) || [];
+
+    // Route filter (match either the display name or the route id).
+    if (Array.isArray(cfg.routes) && cfg.routes.length) {
+      const set = new Set(cfg.routes);
+      deps = deps.filter((d) => set.has(d.route) || set.has(d.route_id));
+    }
+    // Destination filter.
+    if (Array.isArray(cfg.destinations) && cfg.destinations.length) {
+      const set = new Set(cfg.destinations);
+      deps = deps.filter((d) => set.has(d.headsign));
+    }
+
+    const per = Number(cfg.per_destination) || 0;
+    if (per > 0) {
+      // Group by destination, keep the next `per` of each, order groups by the
+      // soonest departure so the most imminent destinations sit at the top.
+      const groups = new Map();
+      for (const d of deps) {
+        const key = d.headsign || d.route || "?";
+        if (!groups.has(key)) groups.set(key, []);
+        const arr = groups.get(key);
+        if (arr.length < per) arr.push(d);
+      }
+      const ordered = [...groups.values()].sort((a, b) => sortKey(a[0]) - sortKey(b[0]));
+      return [].concat(...ordered).slice(0, GROUP_CAP);
+    }
+
+    return deps.slice(0, cfg.rows || 6);
+  }
+
+  _ensureDom() {
+    if (this._card) return;
+    this.innerHTML =
+      '<ha-card style="overflow:hidden">' +
+      '<div class="mbta-board" style="padding:8px 8px 0 8px"></div>' +
+      '<div class="mbta-alert" style="padding:0 8px 8px 8px;display:none"></div>' +
+      "</ha-card>";
+    this._card = this.querySelector("ha-card");
+    this._boardEl = this.querySelector(".mbta-board");
+    this._alertEl = this.querySelector(".mbta-alert");
+  }
+
   _render() {
     if (!this._hass) return;
     const cfg = this._config;
     const stateObj = this._hass.states[cfg.entity];
 
-    const alertId = cfg.show_alerts ? this._alertEntityId() : null;
+    // ---- alert text (independent of the board) ----
+    const alertId = cfg.show_alerts === false ? null : this._alertEntityId();
     const alertObj = alertId ? this._hass.states[alertId] : null;
     const alertActive = alertObj && alertObj.state === "on";
     const alertText = alertActive
-      ? alertObj.attributes.alert_text ||
-        (alertObj.attributes.headers || []).join("  •  ")
+      ? alertObj.attributes.alert_text || (alertObj.attributes.headers || []).join("  •  ")
       : "";
 
+    // ---- board content ----
     const title =
       cfg.title ||
       (stateObj && (stateObj.attributes.stop_name || stateObj.attributes.friendly_name)) ||
       "MBTA";
+    const departures = this._computeDepartures(stateObj);
+    this._lastCount = Math.max(departures.length, 1);
+    const clock = cfg.show_clock === false ? "" : this._clockText();
 
-    let departures = (stateObj && stateObj.attributes.departures) || [];
-    departures = departures.slice(0, cfg.rows || 6);
+    this._ensureDom();
 
-    const rowsH = Math.max(departures.length, 1) * ROW_H;
-    const alertBarH = alertActive && alertText ? ALERT_H : 0;
-    const totalH = HEADER_H + rowsH + alertBarH + PAD;
-
-    let svg = "";
-    svg += `<svg viewBox="0 0 ${VIEW_W} ${totalH}" width="100%" preserveAspectRatio="xMidYMid meet" font-family="'DejaVu Sans Mono','Roboto Mono',ui-monospace,monospace" role="img" aria-label="${escapeXml(title)} arrival board">`;
-
-    // Board background
-    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${totalH}" rx="14" fill="#0b0e14" stroke="#1c2230" stroke-width="2"/>`;
-
-    // Header bar
-    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${HEADER_H}" rx="14" fill="#11151f"/>`;
-    svg += `<rect x="0" y="${HEADER_H - 14}" width="${VIEW_W}" height="14" fill="#11151f"/>`;
-    svg += `<circle cx="${PAD + 12}" cy="${HEADER_H / 2}" r="12" fill="#FFC72C"/>`;
-    svg += `<text x="${PAD + 12}" y="${HEADER_H / 2 + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#10131a">T</text>`;
-    svg += `<text x="${PAD + 34}" y="${HEADER_H / 2 + 7}" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(title)}</text>`;
-    if (cfg.show_clock) {
-      const now = new Date();
-      const clock = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-      svg += `<text x="${VIEW_W - PAD}" y="${HEADER_H / 2 + 7}" text-anchor="end" font-size="18" fill="#FFB000" letter-spacing="1">${escapeXml(clock)}</text>`;
+    // Rebuild the board only when something visible changed.
+    const boardSig = JSON.stringify({
+      title,
+      clock,
+      found: !!stateObj,
+      deps: departures.map((d) => [d.route_id, d.route, d.headsign, d.minutes, d.status, d.cancelled]),
+    });
+    if (boardSig !== this._boardSig) {
+      this._boardSig = boardSig;
+      this._boardEl.innerHTML = this._boardSvg(title, clock, stateObj, departures);
     }
 
-    // Rows
+    // Rebuild the alert banner only when the text changes — this is what keeps
+    // the marquee from restarting on every departure refresh.
+    if (alertText !== this._alertText) {
+      this._alertText = alertText;
+      this._alertEl.style.display = alertText ? "block" : "none";
+      this._alertEl.innerHTML = alertText ? this._alertSvg(alertText) : "";
+    }
+  }
+
+  _clockText() {
+    return new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  }
+
+  _boardSvg(title, clock, stateObj, departures) {
+    const rowsH = Math.max(departures.length, 1) * ROW_H;
+    const totalH = HEADER_H + rowsH + PAD;
+    let svg = `<svg viewBox="0 0 ${VIEW_W} ${totalH}" width="100%" preserveAspectRatio="xMidYMid meet" font-family="${MONO}" role="img" aria-label="${escapeXml(title)} arrival board">`;
+
+    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${totalH}" rx="14" fill="#0b0e14" stroke="#1c2230" stroke-width="2"/>`;
+
+    // Header
+    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${HEADER_H}" rx="14" fill="#11151f"/>`;
+    svg += `<rect x="0" y="${HEADER_H - 14}" width="${VIEW_W}" height="14" fill="#11151f"/>`;
+    svg += `<circle cx="${PAD + 16}" cy="${HEADER_H / 2}" r="12" fill="#FFC72C"/>`;
+    svg += `<text x="${PAD + 16}" y="${HEADER_H / 2 + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#10131a">T</text>`;
+    svg += `<text x="${PAD + 38}" y="${HEADER_H / 2 + 7}" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(title)}</text>`;
+    if (clock) {
+      svg += `<text x="${VIEW_W - PAD - 4}" y="${HEADER_H / 2 + 7}" text-anchor="end" font-size="18" fill="#FFB000" letter-spacing="1">${escapeXml(clock)}</text>`;
+    }
+
     if (!stateObj) {
-      svg += this._centeredMessage(`ENTITY NOT FOUND`, HEADER_H, rowsH, "#ff5252");
+      svg += this._centeredMessage("ENTITY NOT FOUND", HEADER_H, rowsH, "#ff5252");
     } else if (departures.length === 0) {
       svg += this._centeredMessage("NO DEPARTURES", HEADER_H, rowsH, "#7a8290");
     } else {
       departures.forEach((d, i) => {
-        const y = HEADER_H + i * ROW_H;
-        svg += this._row(d, y, i);
+        svg += this._row(d, HEADER_H + i * ROW_H, i);
       });
     }
 
-    // Alert banner (scrolling marquee)
-    if (alertBarH) {
-      svg += this._alertBanner(alertText, totalH - alertBarH);
-    }
-
     svg += `</svg>`;
-
-    if (!this._card) {
-      this.innerHTML = `<ha-card style="overflow:hidden"><div class="mbta-board" style="padding:8px"></div></ha-card>`;
-      this._card = this.querySelector(".mbta-board");
-    }
-    this._card.innerHTML = svg;
+    return svg;
   }
 
   _centeredMessage(text, top, h, color) {
@@ -234,22 +308,18 @@ class MbtaArrivalBoardCard extends HTMLElement {
   _row(d, y, i) {
     const cy = y + ROW_H / 2;
     let out = "";
-    // Zebra striping
     if (i % 2 === 1) {
       out += `<rect x="6" y="${y}" width="${VIEW_W - 12}" height="${ROW_H}" fill="#0f131c"/>`;
     }
     out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#1c2230" stroke-width="1"/>`;
 
-    // Route badge
     const color = routeColor(d);
     const label = badgeText(d);
     const badgeW = Math.max(40, label.length * 12 + 14);
     const badgeX = PAD;
-    const badgeY = cy - 14;
-    out += `<rect x="${badgeX}" y="${badgeY}" width="${badgeW}" height="28" rx="6" fill="${color}"/>`;
+    out += `<rect x="${badgeX}" y="${cy - 14}" width="${badgeW}" height="28" rx="6" fill="${color}"/>`;
     out += `<text x="${badgeX + badgeW / 2}" y="${cy + 6}" text-anchor="middle" font-size="16" font-weight="700" fill="${contrastText(color)}">${escapeXml(label)}</text>`;
 
-    // Destination / headsign (truncated to fit)
     const time = timeInfo(d);
     const timeW = Math.max(72, time.text.length * 13 + 8);
     const destX = badgeX + badgeW + 14;
@@ -259,28 +329,27 @@ class MbtaArrivalBoardCard extends HTMLElement {
     if (dest.length > maxChars) dest = dest.slice(0, maxChars - 1) + "…";
     out += `<text x="${destX}" y="${cy + 7}" font-size="21" fill="#e8ecf3" letter-spacing="0.5">${escapeXml(dest)}</text>`;
 
-    // Time, right aligned
     out += `<text x="${VIEW_W - PAD}" y="${cy + 7}" text-anchor="end" font-size="21" font-weight="700" fill="${time.color}" letter-spacing="0.5">${escapeXml(time.text)}</text>`;
     return out;
   }
 
-  _alertBanner(text, y) {
+  _alertSvg(text) {
     const msg = `ALERT •  ${text.replace(/\s+/g, " ").trim()}        `;
     const fontSize = 16;
     const charW = fontSize * 0.6;
     const textW = msg.length * charW;
-    const speed = 70; // px per second
-    const dur = Math.max(8, (VIEW_W + textW) / speed);
-    const clipId = `${this._uid}-alertclip`;
-    let out = "";
-    out += `<rect x="0" y="${y}" width="${VIEW_W}" height="${ALERT_H}" fill="#3a1d1d"/>`;
-    out += `<rect x="0" y="${y}" width="6" height="${ALERT_H}" fill="#ff5252"/>`;
-    out += `<defs><clipPath id="${clipId}"><rect x="8" y="${y}" width="${VIEW_W - 16}" height="${ALERT_H}"/></clipPath></defs>`;
+    const dur = Math.max(8, (VIEW_W + textW) / 70);
+    const clipId = `${this._uid}-alert-${++this._alertSeq}`;
+    const H = ALERT_PANEL_H;
+    let out = `<svg viewBox="0 0 ${VIEW_W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" font-family="${MONO}" role="img" aria-label="Service alert">`;
+    out += `<rect x="0" y="0" width="${VIEW_W}" height="${H}" rx="12" fill="#2a1414" stroke="#5a2a2a" stroke-width="1.5"/>`;
+    out += `<rect x="10" y="${H / 2 - 9}" width="4" height="18" rx="2" fill="#ff5252"/>`;
+    out += `<defs><clipPath id="${clipId}"><rect x="22" y="0" width="${VIEW_W - 34}" height="${H}"/></clipPath></defs>`;
     out += `<g clip-path="url(#${clipId})">`;
-    out += `<text x="0" y="${y + ALERT_H / 2 + 5}" font-size="${fontSize}" fill="#ffd2d2" letter-spacing="0.5">`;
+    out += `<text x="0" y="${H / 2 + 5}" font-size="${fontSize}" fill="#ffd2d2" letter-spacing="0.5">`;
     out += `<animateTransform attributeName="transform" type="translate" from="${VIEW_W} 0" to="${-textW} 0" dur="${dur}s" repeatCount="indefinite"/>`;
     out += escapeXml(msg);
-    out += `</text></g>`;
+    out += `</text></g></svg>`;
     return out;
   }
 
@@ -292,14 +361,15 @@ class MbtaArrivalBoardCard extends HTMLElement {
     const sensor = Object.keys(hass.states).find(
       (e) => e.startsWith("sensor.") && e.endsWith("_next_departure")
     );
-    return { entity: sensor || "sensor.mbta_next_departure" };
+    return { entity: sensor || "sensor.mbta_next_departure", per_destination: 3 };
   }
 }
 
 customElements.define("mbta-arrival-board-card", MbtaArrivalBoardCard);
 
 /* Visual editor — uses Home Assistant's <ha-form> with selectors so it works
- * without bundling any frontend dependencies. */
+ * without bundling any frontend dependencies. Route/destination options are
+ * derived live from the selected sensor's current departures. */
 class MbtaArrivalBoardCardEditor extends HTMLElement {
   setConfig(config) {
     this._config = config || {};
@@ -311,6 +381,29 @@ class MbtaArrivalBoardCardEditor extends HTMLElement {
     this._render();
   }
 
+  _departures() {
+    const e = this._config && this._config.entity;
+    const st = e && this._hass && this._hass.states[e];
+    return (st && st.attributes.departures) || [];
+  }
+
+  _schema() {
+    const deps = this._departures();
+    const routeOpts = uniq(deps.map((d) => d.route).filter(Boolean)).map((o) => ({ value: o, label: o }));
+    const destOpts = uniq(deps.map((d) => d.headsign).filter(Boolean)).map((o) => ({ value: o, label: o }));
+    return [
+      { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
+      { name: "title", selector: { text: {} } },
+      { name: "alert_entity", selector: { entity: { domain: "binary_sensor" } } },
+      { name: "routes", selector: { select: { multiple: true, custom_value: true, mode: "list", options: routeOpts } } },
+      { name: "destinations", selector: { select: { multiple: true, custom_value: true, mode: "list", options: destOpts } } },
+      { name: "per_destination", selector: { number: { min: 0, max: 10, mode: "box" } } },
+      { name: "rows", selector: { number: { min: 1, max: 20, mode: "box" } } },
+      { name: "show_alerts", selector: { boolean: {} } },
+      { name: "show_clock", selector: { boolean: {} } },
+    ];
+  }
+
   _render() {
     if (!this._hass) return;
     if (!this._form) {
@@ -320,19 +413,30 @@ class MbtaArrivalBoardCardEditor extends HTMLElement {
         ev.stopPropagation();
         const config = { type: "custom:mbta-arrival-board-card", ...ev.detail.value };
         this.dispatchEvent(
-          new CustomEvent("config-changed", {
-            detail: { config },
-            bubbles: true,
-            composed: true,
-          })
+          new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true })
         );
       });
       this.appendChild(this._form);
     }
+
+    // Only reassign the schema when its option set actually changes, so the
+    // form doesn't reset while the user is typing.
+    const schema = this._schema();
+    const sig = JSON.stringify(
+      schema.map((s) => [s.name, s.selector.select ? s.selector.select.options : null])
+    );
+    if (sig !== this._schemaSig) {
+      this._schemaSig = sig;
+      this._form.schema = schema;
+    }
     this._form.hass = this._hass;
-    this._form.schema = EDITOR_SCHEMA;
-    // Surface the runtime defaults so toggles reflect effective behaviour.
-    this._form.data = { show_alerts: true, show_clock: true, rows: 6, ...this._config };
+    this._form.data = {
+      show_alerts: true,
+      show_clock: true,
+      rows: 6,
+      per_destination: 0,
+      ...this._config,
+    };
   }
 }
 
