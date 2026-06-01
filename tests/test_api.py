@@ -81,8 +81,14 @@ async def test_alerts_parsing_and_active_filtering() -> None:
     serialised = delay.as_dict()
     assert serialised["effect"] == "DELAY"
     assert serialised["severity"] == 5
-    # short_header is preferred over header for display.
+    # short_header is preferred over header for the concise display field.
     assert serialised["header"] == "Red Line delays up to 15 min."
+    # ...but the full header and description are available too.
+    assert serialised["full_header"].startswith("Red Line is experiencing")
+    assert serialised["description"] == "Due to a disabled train."
+    # The combined human-readable text includes both the header and description.
+    assert "Red Line is experiencing" in delay.text
+    assert "Due to a disabled train." in delay.text
 
 
 async def test_alerts_bucketed_per_stop() -> None:

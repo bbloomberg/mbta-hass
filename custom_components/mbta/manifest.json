@@ -3,6 +3,7 @@
   "name": "MBTA",
   "codeowners": ["@bbloomberg"],
   "config_flow": true,
+  "dependencies": ["http", "frontend"],
   "documentation": "https://github.com/bbloomberg/mbta-hass",
   "integration_type": "hub",
   "iot_class": "cloud_polling",

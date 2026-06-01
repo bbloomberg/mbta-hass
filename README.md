@@ -16,6 +16,11 @@ For each stop you configure you get:
 
 Each stop becomes its own **device** so the two entities are grouped together.
 
+It also ships with a **custom Lovelace card** that renders a stop as an SVG
+station arrival board, with a scrolling alert banner:
+
+![MBTA arrival board card](docs/arrival-board.png)
+
 ## Installation
 
 ### HACS (recommended)
@@ -61,6 +66,38 @@ Click **Reconfigure** on the integration (the ⋮ menu on the integration entry)
 
 …then click **Save**. The integration reloads with the new set of stops.
 
+## The arrival-board card
+
+The integration bundles a custom card (`custom:mbta-arrival-board-card`) and
+auto-registers it as a frontend resource — **no manual resource setup is
+needed**. After installing the integration and restarting, it appears in the
+dashboard card picker as **"MBTA Arrival Board"**.
+
+> If you don't see it immediately, do a hard refresh (Ctrl/Cmd-Shift-R) to clear
+> the cached dashboard, since the card JS is freshly registered.
+
+Minimal config:
+
+```yaml
+type: custom:mbta-arrival-board-card
+entity: sensor.park_street_next_departure
+```
+
+All options:
+
+| Option         | Default                            | Description                                                        |
+| -------------- | ---------------------------------- | ------------------------------------------------------------------ |
+| `entity`       | _(required)_                       | The stop's `*_next_departure` sensor.                              |
+| `alert_entity` | derived from `entity`              | The stop's `*_service_alert` binary sensor (for the alert banner). |
+| `title`        | stop name                          | Board heading.                                                     |
+| `rows`         | `6`                                | Max departures to show. Increase the **Upcoming departures** option if you want more than 5. |
+| `show_alerts`  | `true`                             | Show the scrolling alert banner when an alert is active.           |
+| `show_clock`   | `true`                             | Show the current time in the header.                               |
+
+Route badges are colored by MBTA line (Red/Orange/Blue/Green branches, purple
+Commuter Rail, teal ferry, yellow bus); countdowns show `ARR`/live status in
+green and `CXL` for cancellations.
+
 ## Example automation — alert me when my stop is delayed
 
 ```yaml
@@ -80,8 +117,7 @@ automation:
         data:
           title: "MBTA delay"
           message: >
-            {{ state_attr('binary_sensor.park_street_service_alert', 'headers')
-               | join(' / ') }}
+            {{ state_attr('binary_sensor.park_street_service_alert', 'alert_text') }}
 ```
 
 ## Development

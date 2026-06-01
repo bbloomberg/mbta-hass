@@ -104,6 +104,15 @@ class Alert:
             return True
         return False
 
+    @property
+    def text(self) -> str:
+        """Human-readable alert text: full header plus description if extra."""
+        head = self.header or self.short_header or self.effect.title()
+        desc = (self.description or "").strip()
+        if desc and desc not in (head or ""):
+            return f"{head}\n{desc}"
+        return head
+
     def as_dict(self) -> dict[str, Any]:
         """Serialise for use as a Home Assistant attribute."""
         return {
@@ -111,6 +120,9 @@ class Alert:
             "severity": self.severity,
             "lifecycle": self.lifecycle,
             "header": self.short_header or self.header,
+            "full_header": self.header,
+            "description": self.description,
+            "text": self.text,
             "url": self.url,
         }
 

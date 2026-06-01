@@ -82,6 +82,8 @@ async def test_entities_reflect_data(hass: HomeAssistant) -> None:
     assert alert.state == "on"
     assert alert.attributes["has_delay"] is True
     assert "DELAY" in alert.attributes["effects"]
+    # Full alert text is surfaced for display.
+    assert "Red Line is experiencing" in alert.attributes["alert_text"]
 
 
 def test_domain_objects_importable() -> None:

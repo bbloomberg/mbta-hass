@@ -65,5 +65,6 @@ class MbtaAlertBinarySensor(MbtaStopEntity, BinarySensorEntity):
             "has_delay": bool(delays),
             "effects": sorted({a.effect for a in alerts}),
             "headers": [a.short_header or a.header for a in disruptions if a.header],
+            "alert_text": "\n\n".join(a.text for a in alerts) or None,
             "alerts": [a.as_dict() for a in alerts],
         }
