@@ -1,8 +1,8 @@
 {
   "domain": "mbta",
   "name": "MBTA",
-  "codeowners": ["@bbloomberg"],
   "after_dependencies": ["http", "frontend"],
+  "codeowners": ["@bbloomberg"],
   "config_flow": true,
   "documentation": "https://github.com/bbloomberg/mbta-hass",
   "integration_type": "hub",
