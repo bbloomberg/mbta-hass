@@ -22,3 +22,9 @@ def test_card_defines_custom_element() -> None:
     assert 'customElements.define("mbta-arrival-board-card"' in source
     # Registered with the card picker so it appears in the UI.
     assert "window.customCards" in source
+
+
+def test_card_ships_visual_editor() -> None:
+    source = CARD.read_text()
+    assert 'customElements.define("mbta-arrival-board-card-editor"' in source
+    assert "getConfigElement" in source

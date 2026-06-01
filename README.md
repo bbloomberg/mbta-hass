@@ -76,6 +76,9 @@ dashboard card picker as **"MBTA Arrival Board"**.
 > If you don't see it immediately, do a hard refresh (Ctrl/Cmd-Shift-R) to clear
 > the cached dashboard, since the card JS is freshly registered.
 
+It has a **visual editor**, so you can configure it entirely from the UI (pick
+the departure sensor, title, rows, toggles) without writing YAML.
+
 Minimal config:
 
 ```yaml

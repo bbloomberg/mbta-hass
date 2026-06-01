@@ -44,6 +44,24 @@ const BADGE_TEXT = {
 
 let INSTANCE = 0;
 
+// Schema for the visual (UI) editor, rendered with Home Assistant's <ha-form>.
+const EDITOR_SCHEMA = [
+  { name: "entity", required: true, selector: { entity: { domain: "sensor" } } },
+  { name: "title", selector: { text: {} } },
+  { name: "alert_entity", selector: { entity: { domain: "binary_sensor" } } },
+  { name: "rows", selector: { number: { min: 1, max: 20, mode: "box" } } },
+  { name: "show_alerts", selector: { boolean: {} } },
+  { name: "show_clock", selector: { boolean: {} } },
+];
+const EDITOR_LABELS = {
+  entity: "Departure sensor (required)",
+  title: "Title (defaults to the stop name)",
+  alert_entity: "Alert binary sensor (optional)",
+  rows: "Rows to show",
+  show_alerts: "Show alert banner",
+  show_clock: "Show clock",
+};
+
 function escapeXml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;")
@@ -266,6 +284,10 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return out;
   }
 
+  static getConfigElement() {
+    return document.createElement("mbta-arrival-board-card-editor");
+  }
+
   static getStubConfig(hass) {
     const sensor = Object.keys(hass.states).find(
       (e) => e.startsWith("sensor.") && e.endsWith("_next_departure")
@@ -275,6 +297,46 @@ class MbtaArrivalBoardCard extends HTMLElement {
 }
 
 customElements.define("mbta-arrival-board-card", MbtaArrivalBoardCard);
+
+/* Visual editor — uses Home Assistant's <ha-form> with selectors so it works
+ * without bundling any frontend dependencies. */
+class MbtaArrivalBoardCardEditor extends HTMLElement {
+  setConfig(config) {
+    this._config = config || {};
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  _render() {
+    if (!this._hass) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
+      this._form.addEventListener("value-changed", (ev) => {
+        ev.stopPropagation();
+        const config = { type: "custom:mbta-arrival-board-card", ...ev.detail.value };
+        this.dispatchEvent(
+          new CustomEvent("config-changed", {
+            detail: { config },
+            bubbles: true,
+            composed: true,
+          })
+        );
+      });
+      this.appendChild(this._form);
+    }
+    this._form.hass = this._hass;
+    this._form.schema = EDITOR_SCHEMA;
+    // Surface the runtime defaults so toggles reflect effective behaviour.
+    this._form.data = { show_alerts: true, show_clock: true, rows: 6, ...this._config };
+  }
+}
+
+customElements.define("mbta-arrival-board-card-editor", MbtaArrivalBoardCardEditor);
 
 window.customCards = window.customCards || [];
 window.customCards.push({
