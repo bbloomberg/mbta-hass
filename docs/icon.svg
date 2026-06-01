@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120" role="img" aria-label="MBTA">
+  <title>MBTA</title>
+  <!-- Badge -->
+  <circle cx="60" cy="60" r="51" fill="#11151f" stroke="#1c2230" stroke-width="2"/>
+  <!-- Subway-line ring: Red (top), Orange (right), Green (bottom), Blue (left) -->
+  <g fill="none" stroke-width="13" stroke-linecap="butt">
+    <path d="M 28.887 28.887 A 44 44 0 0 1 91.113 28.887" stroke="#DA291C"/>
+    <path d="M 91.113 28.887 A 44 44 0 0 1 91.113 91.113" stroke="#ED8B00"/>
+    <path d="M 91.113 91.113 A 44 44 0 0 1 28.887 91.113" stroke="#00843D"/>
+    <path d="M 28.887 91.113 A 44 44 0 0 1 28.887 28.887" stroke="#003DA5"/>
+  </g>
+  <!-- Segment dividers -->
+  <g stroke="#11151f" stroke-width="3" stroke-linecap="round">
+    <line x1="28.887" y1="28.887" x2="34.4" y2="34.4"/>
+    <line x1="91.113" y1="28.887" x2="85.6" y2="34.4"/>
+    <line x1="91.113" y1="91.113" x2="85.6" y2="85.6"/>
+    <line x1="28.887" y1="91.113" x2="34.4" y2="85.6"/>
+  </g>
+  <!-- The "T" -->
+  <g fill="#ffffff">
+    <rect x="40" y="43" width="40" height="11" rx="2.5"/>
+    <rect x="54.5" y="43" width="11" height="38" rx="2.5"/>
+  </g>
+</svg>

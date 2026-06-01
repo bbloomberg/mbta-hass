@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" width="360" height="120" role="img" aria-label="MBTA for Home Assistant">
+  <title>MBTA</title>
+  <!-- Self-contained dark panel so the wordmark is legible on any background -->
+  <rect x="2" y="2" width="356" height="116" rx="22" fill="#0b0e14" stroke="#1c2230" stroke-width="2"/>
+  <!-- Roundel -->
+  <g>
+    <circle cx="60" cy="60" r="48" fill="#11151f" stroke="#1c2230" stroke-width="2"/>
+    <g fill="none" stroke-width="12" stroke-linecap="butt">
+      <path d="M 30.98 30.98 A 41 41 0 0 1 89.02 30.98" stroke="#DA291C"/>
+      <path d="M 89.02 30.98 A 41 41 0 0 1 89.02 89.02" stroke="#ED8B00"/>
+      <path d="M 89.02 89.02 A 41 41 0 0 1 30.98 89.02" stroke="#00843D"/>
+      <path d="M 30.98 89.02 A 41 41 0 0 1 30.98 30.98" stroke="#003DA5"/>
+    </g>
+    <g stroke="#11151f" stroke-width="3" stroke-linecap="round">
+      <line x1="30.98" y1="30.98" x2="36" y2="36"/>
+      <line x1="89.02" y1="30.98" x2="84" y2="36"/>
+      <line x1="89.02" y1="89.02" x2="84" y2="84"/>
+      <line x1="30.98" y1="89.02" x2="36" y2="84"/>
+    </g>
+    <g fill="#ffffff">
+      <rect x="42" y="44" width="36" height="10" rx="2.5"/>
+      <rect x="55" y="44" width="10" height="34" rx="2.5"/>
+    </g>
+  </g>
+  <!-- Wordmark -->
+  <text x="132" y="76" font-family="'Helvetica Neue',Arial,sans-serif" font-size="56" font-weight="800" letter-spacing="3" fill="#ffffff">MBTA</text>
+</svg>

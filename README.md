@@ -1,5 +1,9 @@
 # MBTA for Home Assistant
 
+<p align="center">
+  <img src="docs/logo.png" alt="MBTA" width="320">
+</p>
+
 A custom integration that surfaces **live MBTA arrival/departure predictions** and
 **service alerts/delays** for a list of subway, bus, light‑rail, commuter‑rail, or
 ferry stops, using the official [MBTA V3 API](https://www.mbta.com/developers/v3-api).
@@ -146,7 +150,8 @@ CI runs on every push/PR via GitHub Actions:
 - Selecting a parent station (e.g. *Park Street*) automatically includes all of its
   platforms and every route that serves it (Red Line + Green Line branches, etc.).
 - This project is not affiliated with or endorsed by the MBTA. Data is provided by
-  the Massachusetts Bay Transportation Authority.
+  the Massachusetts Bay Transportation Authority. The bundled logo is an
+  original, community-made transit roundel — not the official MBTA mark.
 
 ## License
 
