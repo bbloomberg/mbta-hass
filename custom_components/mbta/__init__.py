@@ -43,6 +43,11 @@ async def _async_register_card(hass: HomeAssistant) -> None:
     """Serve and auto-load the bundled arrival-board card (once per HA instance)."""
     if hass.data.get(_FRONTEND_REGISTERED):
         return
+    # Serving the file needs the HTTP component; auto-loading it needs the
+    # frontend. Both are always present in a real HA instance but may be absent
+    # in headless/test environments — skip quietly in that case.
+    if getattr(hass, "http", None) is None:
+        return
     hass.data[_FRONTEND_REGISTERED] = True
 
     card_path = os.path.join(os.path.dirname(__file__), "www", CARD_FILENAME)

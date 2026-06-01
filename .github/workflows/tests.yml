@@ -11,7 +11,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12", "3.13"]
+        # The test suite installs the latest Home Assistant, which tracks the
+        # Python versions HA itself supports. Keep this in step with HA.
+        python-version: ["3.13"]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
