@@ -167,6 +167,8 @@ CI runs on every push/PR via GitHub Actions:
 - This project is not affiliated with or endorsed by the MBTA. Data is provided by
   the Massachusetts Bay Transportation Authority. The bundled logo is an
   original, community-made transit roundel — not the official MBTA mark.
+- The integration ships its own brand icon/logo in `custom_components/mbta/brand/`,
+  which Home Assistant 2026.3.0+ serves automatically in the UI.
 
 ## License
 

@@ -22,6 +22,7 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          # 'brands' is skipped because this integration isn't published to the
-          # home-assistant/brands repository. Remove this once it is.
+          # 'brands' is skipped: as of Home Assistant 2026.3.0 custom integrations
+          # ship their own brand images (see custom_components/mbta/brand/) instead
+          # of publishing to the home-assistant/brands repository.
           ignore: brands
