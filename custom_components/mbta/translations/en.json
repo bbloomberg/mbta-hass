@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MBTA",
+        "description": "Enter your MBTA V3 API key. It is optional but strongly recommended — without one you share a low, unauthenticated rate limit. Get a free key at {signup_url}.",
+        "data": {
+          "api_key": "API key (optional)"
+        }
+      },
+      "route_type": {
+        "title": "Choose a transit mode",
+        "description": "Pick the type of service, then a route, then the stops you care about.",
+        "data": {
+          "route_type": "Transit mode"
+        }
+      },
+      "route": {
+        "title": "Choose a route",
+        "data": {
+          "route_id": "Route"
+        }
+      },
+      "stops": {
+        "title": "Choose stops",
+        "description": "Select one or more stops on this route to track.",
+        "data": {
+          "stops": "Stops"
+        }
+      },
+      "finish_or_more": {
+        "title": "Add more stops?",
+        "description": "{count} stop(s) selected so far.",
+        "menu_options": {
+          "route_type": "Add stops from another route",
+          "finish": "Finish"
+        }
+      },
+      "reconfigure_menu": {
+        "title": "Reconfigure MBTA",
+        "description": "Currently tracking {count} stop(s). Choose what to change, then Save.",
+        "menu_options": {
+          "edit_stops": "Remove tracked stops",
+          "route_type": "Add stops from another route",
+          "change_api_key": "Change API key",
+          "finish": "Save"
+        }
+      },
+      "edit_stops": {
+        "title": "Tracked stops",
+        "description": "Leave a stop checked to keep tracking it; uncheck to remove it.",
+        "data": {
+          "stops": "Stops"
+        }
+      },
+      "change_api_key": {
+        "title": "Change API key",
+        "data": {
+          "api_key": "API key (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "The MBTA API rejected that API key.",
+      "cannot_connect": "Could not reach the MBTA API. Check your connection and try again."
+    },
+    "abort": {
+      "already_configured": "These stops are already configured.",
+      "cannot_connect": "Could not reach the MBTA API.",
+      "no_routes": "No routes were found for that transit mode.",
+      "no_stops": "No stops were found for that route.",
+      "reconfigure_successful": "MBTA configuration updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "MBTA options",
+        "data": {
+          "scan_interval": "Update interval",
+          "max_departures": "Upcoming departures to show"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "next_departure": {
+        "name": "Next departure"
+      }
+    },
+    "binary_sensor": {
+      "alert": {
+        "name": "Service alert"
+      }
+    }
+  }
+}

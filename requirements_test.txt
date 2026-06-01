@@ -1,0 +1,5 @@
+# Test dependencies. pytest-homeassistant-custom-component pins a matching
+# Home Assistant + pytest + pytest-asyncio stack, so we let it drive versions.
+# Pin a floor that supports the reconfigure-flow test helpers (HA 2024.11+).
+pytest-homeassistant-custom-component>=0.13.190
+pytest-cov

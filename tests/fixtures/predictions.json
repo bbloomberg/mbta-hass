@@ -1,0 +1,80 @@
+{
+  "data": [
+    {
+      "type": "prediction",
+      "id": "p1",
+      "attributes": {
+        "arrival_time": "2030-01-01T12:05:00-05:00",
+        "departure_time": "2030-01-01T12:06:00-05:00",
+        "direction_id": 1,
+        "schedule_relationship": null,
+        "status": null,
+        "trip_headsign": null
+      },
+      "relationships": {
+        "route": {"data": {"id": "Red", "type": "route"}},
+        "stop": {"data": {"id": "70061", "type": "stop"}}
+      }
+    },
+    {
+      "type": "prediction",
+      "id": "p2",
+      "attributes": {
+        "arrival_time": "2030-01-01T12:10:00-05:00",
+        "departure_time": "2030-01-01T12:11:00-05:00",
+        "direction_id": 0,
+        "schedule_relationship": "CANCELLED",
+        "status": null,
+        "trip_headsign": "Ashmont"
+      },
+      "relationships": {
+        "route": {"data": {"id": "Red", "type": "route"}},
+        "stop": {"data": {"id": "place-test", "type": "stop"}}
+      }
+    },
+    {
+      "type": "prediction",
+      "id": "p3-other-stop",
+      "attributes": {
+        "arrival_time": "2030-01-01T12:07:00-05:00",
+        "departure_time": "2030-01-01T12:08:00-05:00",
+        "direction_id": 1,
+        "schedule_relationship": null,
+        "status": null,
+        "trip_headsign": null
+      },
+      "relationships": {
+        "route": {"data": {"id": "Red", "type": "route"}},
+        "stop": {"data": {"id": "place-unrelated", "type": "stop"}}
+      }
+    }
+  ],
+  "included": [
+    {
+      "type": "route",
+      "id": "Red",
+      "attributes": {
+        "short_name": "",
+        "long_name": "Red Line",
+        "type": 1,
+        "color": "DA291C",
+        "direction_names": ["South", "North"],
+        "direction_destinations": ["Ashmont/Braintree", "Alewife"]
+      }
+    },
+    {
+      "type": "stop",
+      "id": "70061",
+      "attributes": {"name": "Alewife - platform"},
+      "relationships": {
+        "parent_station": {"data": {"id": "place-test", "type": "stop"}}
+      }
+    },
+    {
+      "type": "stop",
+      "id": "place-unrelated",
+      "attributes": {"name": "Somewhere else"},
+      "relationships": {"parent_station": {"data": null}}
+    }
+  ]
+}
