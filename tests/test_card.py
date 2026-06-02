@@ -45,6 +45,14 @@ def test_card_supports_group_by_direction() -> None:
     assert 'group_by === "direction"' in source
 
 
+def test_card_orders_groups_deterministically() -> None:
+    source = CARD.read_text()
+    # Groups are ordered by direction then name (fixed), not by soonest train.
+    assert "groups.entries()" in source
+    assert "direction_id" in source
+    assert "sortKey" not in source  # the old soonest-first ordering is gone
+
+
 def test_card_renders_alert_independently() -> None:
     source = CARD.read_text()
     # The alert banner lives in its own node and is rebuilt only on text change,

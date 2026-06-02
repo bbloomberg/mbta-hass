@@ -114,9 +114,6 @@ function timeInfo(d) {
   return { text: `${d.minutes} MIN`, color: "#FFB000" };
 }
 
-function sortKey(d) {
-  return d && d.minutes != null ? d.minutes : Number.POSITIVE_INFINITY;
-}
 
 class MbtaArrivalBoardCard extends HTMLElement {
   constructor() {
@@ -215,7 +212,22 @@ class MbtaArrivalBoardCard extends HTMLElement {
         const arr = groups.get(key);
         if (arr.length < per) arr.push(d);
       }
-      const ordered = [...groups.values()].sort((a, b) => sortKey(a[0]) - sortKey(b[0]));
+      // Order groups deterministically — by direction, then destination name —
+      // so they keep a fixed position instead of reshuffling as the soonest
+      // train changes on each refresh. Departures within a group stay in time
+      // order.
+      const ordered = [...groups.entries()]
+        .sort((a, b) => {
+          const da = a[1][0];
+          const db = b[1][0];
+          const dirA = da.direction_id != null ? da.direction_id : 99;
+          const dirB = db.direction_id != null ? db.direction_id : 99;
+          if (dirA !== dirB) return dirA - dirB;
+          const ka = da.headsign || da.route || a[0];
+          const kb = db.headsign || db.route || b[0];
+          return ka < kb ? -1 : ka > kb ? 1 : 0;
+        })
+        .map((e) => e[1]);
       return [].concat(...ordered).slice(0, GROUP_CAP);
     }
 
