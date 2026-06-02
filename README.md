@@ -49,7 +49,8 @@ Everything is done from the UI — no YAML.
    <https://api-v3.mbta.com/register>.
 3. Choose a **transit mode** → a **route** → then **select the stops** you care
    about. You can repeat this to add stops from multiple routes, then click
-   **Finish**.
+   **Finish**. Bus routes are listed by number and termini (e.g.
+   *"1 — Harvard Square - Nubian Station"*).
 
 > **Bus stops and direction:** MBTA models each direction of a bus stop as a
 > separate stop with the same name (and no parent station). The integration
@@ -127,9 +128,12 @@ per_destination: 3
 
 Route badges are colored by MBTA line (Red/Orange/Blue/Green branches, purple
 Commuter Rail, teal ferry, yellow bus); countdowns show `ARR`/live status in
-green and `CXL` for cancellations. The departures board and the alert banner
-refresh independently, so updating arrival times never restarts the alert
-banner's scroll — it only re-scrolls when the alert text itself changes.
+green and `CXL` for cancellations. On forking lines each train shows its own
+destination (e.g. **Ashmont** or **Braintree**, not the combined
+"Ashmont/Braintree"), and in `per_destination` mode a horizontal rule separates
+the destination groups. The departures board and the alert banner refresh
+independently, so updating arrival times never restarts the alert banner's
+scroll — it only re-scrolls when the alert text itself changes.
 
 ## Example automation — alert me when my stop is delayed
 

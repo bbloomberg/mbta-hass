@@ -63,6 +63,68 @@ async def test_predictions_empty_stop_list() -> None:
     assert await client.async_get_predictions([]) == {}
 
 
+async def test_forking_line_uses_trip_headsign() -> None:
+    """A train on a forking line shows its actual destination, not the combined one."""
+    payload = {
+        "data": [
+            {
+                "type": "prediction",
+                "id": "x",
+                "attributes": {
+                    "departure_time": "2030-01-01T12:00:00-05:00",
+                    "direction_id": 0,
+                    "trip_headsign": None,
+                },
+                "relationships": {
+                    "route": {"data": {"id": "Red", "type": "route"}},
+                    "stop": {"data": {"id": "place-test", "type": "stop"}},
+                    "trip": {"data": {"id": "t1", "type": "trip"}},
+                },
+            }
+        ],
+        "included": [
+            {
+                "type": "route",
+                "id": "Red",
+                "attributes": {
+                    "long_name": "Red Line",
+                    "type": 1,
+                    "direction_names": ["South", "North"],
+                    "direction_destinations": ["Ashmont/Braintree", "Alewife"],
+                },
+            },
+            {"type": "trip", "id": "t1", "attributes": {"headsign": "Braintree"}},
+        ],
+    }
+    client = _StubClient({"predictions": payload})
+    result = await client.async_get_predictions(["place-test"])
+    # Trip headsign wins over the route's combined "Ashmont/Braintree".
+    assert result["place-test"][0].headsign == "Braintree"
+
+
+async def test_route_labels_include_bus_number() -> None:
+    """Bus routes show the number with the termini; subway lines stay clean."""
+
+    def routes_payload(items):
+        return {"data": [{"id": i, "attributes": a} for i, a in items]}
+
+    bus = _StubClient(
+        {
+            "routes": routes_payload(
+                [("1", {"short_name": "1", "long_name": "Harvard Square - Nubian Station"})]
+            )
+        }
+    )
+    assert (await bus.async_get_routes(3))[0]["name"] == (
+        "1 — Harvard Square - Nubian Station"
+    )
+
+    subway = _StubClient(
+        {"routes": routes_payload([("Red", {"short_name": "", "long_name": "Red Line"})])}
+    )
+    assert (await subway.async_get_routes(1))[0]["name"] == "Red Line"
+
+
 async def test_alerts_parsing_and_active_filtering() -> None:
     client = _StubClient({"alerts": load_fixture("alerts.json")})
 

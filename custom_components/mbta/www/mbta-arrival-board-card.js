@@ -292,8 +292,15 @@ class MbtaArrivalBoardCard extends HTMLElement {
     } else if (departures.length === 0) {
       svg += this._centeredMessage("NO DEPARTURES", HEADER_H, rowsH, "#7a8290");
     } else {
+      // In per-destination mode the list is ordered by destination group; draw
+      // a heavier rule where the destination changes to separate directions.
+      const grouped = (Number(this._config.per_destination) || 0) > 0;
+      let prevKey = null;
       departures.forEach((d, i) => {
-        svg += this._row(d, HEADER_H + i * ROW_H, i);
+        const key = d.headsign || d.route || "?";
+        const newGroup = grouped && i > 0 && key !== prevKey;
+        svg += this._row(d, HEADER_H + i * ROW_H, i, newGroup);
+        prevKey = key;
       });
     }
 
@@ -305,13 +312,18 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return `<text x="${VIEW_W / 2}" y="${top + h / 2 + 8}" text-anchor="middle" font-size="22" fill="${color}" letter-spacing="2">${escapeXml(text)}</text>`;
   }
 
-  _row(d, y, i) {
+  _row(d, y, i, newGroup) {
     const cy = y + ROW_H / 2;
     let out = "";
     if (i % 2 === 1) {
       out += `<rect x="6" y="${y}" width="${VIEW_W - 12}" height="${ROW_H}" fill="#0f131c"/>`;
     }
-    out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#1c2230" stroke-width="1"/>`;
+    if (newGroup) {
+      // Heavier divider between destination groups.
+      out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#3d4759" stroke-width="2.5"/>`;
+    } else {
+      out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#1c2230" stroke-width="1"/>`;
+    }
 
     const color = routeColor(d);
     const label = badgeText(d);

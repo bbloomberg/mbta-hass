@@ -191,7 +191,15 @@ class MbtaApiClient:
         routes: list[dict[str, Any]] = []
         for item in data.get("data", []):
             attrs = item.get("attributes", {})
-            name = attrs.get("long_name") or attrs.get("short_name") or item["id"]
+            short = (attrs.get("short_name") or "").strip()
+            long_name = (attrs.get("long_name") or "").strip()
+            # Show the route number alongside the termini for buses (e.g.
+            # "1 — Harvard Square - Nubian Station"), while leaving subway lines
+            # that already carry the name in long_name alone (e.g. "Red Line").
+            if short and short not in long_name:
+                name = f"{short} — {long_name}" if long_name else short
+            else:
+                name = long_name or short or item["id"]
             routes.append({"id": item["id"], "name": name})
         return routes
 
@@ -230,7 +238,7 @@ class MbtaApiClient:
             "predictions",
             {
                 "filter[stop]": ",".join(stop_ids),
-                "include": "route,stop",
+                "include": "route,trip,stop",
                 "sort": "departure_time",
                 "page[limit]": 100,
             },
@@ -260,10 +268,17 @@ class MbtaApiClient:
             route_color = route_attrs.get("color")
             route_type = route_attrs.get("type")
 
-            # trip_headsign is frequently null on predictions; fall back to the
-            # route's destination for this direction (e.g. "Alewife").
-            headsign = attrs.get("trip_headsign") or _direction_destination(
-                route_attrs, attrs.get("direction_id")
+            trip_id = _rel_id(rels, "trip") or ""
+            trip = included.get(("trip", trip_id), {})
+            trip_headsign = trip.get("attributes", {}).get("headsign")
+            # Prefer the trip's own headsign so forking lines show the actual
+            # destination of each train (e.g. "Ashmont" or "Braintree", rather
+            # than the combined "Ashmont/Braintree"). Fall back to the route's
+            # destination for this direction when the trip headsign is missing.
+            headsign = (
+                trip_headsign
+                or attrs.get("trip_headsign")
+                or _direction_destination(route_attrs, attrs.get("direction_id"))
             )
 
             schedule_rel = attrs.get("schedule_relationship")
