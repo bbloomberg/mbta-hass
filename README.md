@@ -133,7 +133,10 @@ green and `CXL` for cancellations. On forking lines each train shows its own
 destination (e.g. **Ashmont** or **Braintree**, not the combined
 "Ashmont/Braintree"), and in `per_destination` mode a horizontal rule separates
 the destination groups. Groups keep a **fixed order** (by direction, then
-destination name) so they don't reshuffle as arrival times tick down. The departures board and the alert banner refresh
+destination name) so they don't reshuffle as arrival times tick down. When a
+service alert is active, a banner is attached to the bottom of the board; it
+starts with the message visible and scrolls. **Tap the banner** to expand it to
+the full, wrapped alert text (tap again to collapse). The departures board and the alert banner refresh
 independently, so updating arrival times never restarts the alert banner's
 scroll — it only re-scrolls when the alert text itself changes.
 

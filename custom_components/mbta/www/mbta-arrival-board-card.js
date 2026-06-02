@@ -17,7 +17,9 @@
  *
  * The departures board and the alert banner are rendered into separate DOM
  * nodes and each is rebuilt only when its own content changes, so a departure
- * refresh never restarts the alert marquee.
+ * refresh never restarts the alert marquee. The two nodes sit flush inside one
+ * ha-card so the alert looks attached to the bottom of the board. Tapping the
+ * alert expands it to the full, wrapped text; tapping again collapses it.
  */
 
 const VIEW_W = 520;
@@ -123,7 +125,8 @@ class MbtaArrivalBoardCard extends HTMLElement {
     this._hass = null;
     this._clockTimer = null;
     this._boardSig = null;
-    this._alertText = null;
+    this._alertKey = null;
+    this._alertExpanded = false;
     this._alertSeq = 0;
     this._lastCount = 1;
   }
@@ -141,7 +144,7 @@ class MbtaArrivalBoardCard extends HTMLElement {
       ...config,
     };
     this._boardSig = null; // force a rebuild on config change
-    this._alertText = null;
+    this._alertKey = null;
     this._render();
   }
 
@@ -236,14 +239,23 @@ class MbtaArrivalBoardCard extends HTMLElement {
 
   _ensureDom() {
     if (this._card) return;
+    // The board and alert are separate nodes (so the alert refreshes
+    // independently of departures), but with squared edges and no gap they read
+    // as one card — the ha-card's overflow/rounding stitches them together so
+    // the alert looks attached to the bottom of the board.
     this.innerHTML =
-      '<ha-card style="overflow:hidden">' +
-      '<div class="mbta-board" style="padding:8px 8px 0 8px"></div>' +
-      '<div class="mbta-alert" style="padding:0 8px 8px 8px;display:none"></div>' +
+      '<ha-card style="overflow:hidden;background:#0b0e14">' +
+      '<div class="mbta-board" style="line-height:0"></div>' +
+      '<div class="mbta-alert" style="line-height:0;cursor:pointer;margin-top:-1px;display:none"></div>' +
       "</ha-card>";
     this._card = this.querySelector("ha-card");
     this._boardEl = this.querySelector(".mbta-board");
     this._alertEl = this.querySelector(".mbta-alert");
+    // Tap the alert to expand it to the full text (and tap again to collapse).
+    this._alertEl.addEventListener("click", () => {
+      this._alertExpanded = !this._alertExpanded;
+      this._render();
+    });
   }
 
   _render() {
@@ -282,12 +294,16 @@ class MbtaArrivalBoardCard extends HTMLElement {
       this._boardEl.innerHTML = this._boardSvg(title, clock, stateObj, departures);
     }
 
-    // Rebuild the alert banner only when the text changes — this is what keeps
-    // the marquee from restarting on every departure refresh.
-    if (alertText !== this._alertText) {
-      this._alertText = alertText;
+    // Rebuild the alert banner only when its text or expanded state changes —
+    // this keeps the marquee from restarting on every departure refresh.
+    if (!alertText) this._alertExpanded = false;
+    const alertKey = alertText ? `${alertText}|${this._alertExpanded ? "x" : "c"}` : "";
+    if (alertKey !== this._alertKey) {
+      this._alertKey = alertKey;
       this._alertEl.style.display = alertText ? "block" : "none";
-      this._alertEl.innerHTML = alertText ? this._alertSvg(alertText) : "";
+      this._alertEl.innerHTML = alertText
+        ? this._alertSvg(alertText, this._alertExpanded)
+        : "";
     }
   }
 
@@ -298,13 +314,14 @@ class MbtaArrivalBoardCard extends HTMLElement {
   _boardSvg(title, clock, stateObj, departures) {
     const rowsH = Math.max(departures.length, 1) * ROW_H;
     const totalH = HEADER_H + rowsH + PAD;
-    let svg = `<svg viewBox="0 0 ${VIEW_W} ${totalH}" width="100%" preserveAspectRatio="xMidYMid meet" font-family="${MONO}" role="img" aria-label="${escapeXml(title)} arrival board">`;
+    let svg = `<svg viewBox="0 0 ${VIEW_W} ${totalH}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block" font-family="${MONO}" role="img" aria-label="${escapeXml(title)} arrival board">`;
 
-    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${totalH}" rx="14" fill="#0b0e14" stroke="#1c2230" stroke-width="2"/>`;
+    // Square corners — the ha-card rounds/clips the outer edges so the alert
+    // banner can sit flush against the bottom.
+    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${totalH}" fill="#0b0e14"/>`;
 
     // Header
-    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${HEADER_H}" rx="14" fill="#11151f"/>`;
-    svg += `<rect x="0" y="${HEADER_H - 14}" width="${VIEW_W}" height="14" fill="#11151f"/>`;
+    svg += `<rect x="0" y="0" width="${VIEW_W}" height="${HEADER_H}" fill="#11151f"/>`;
     svg += `<circle cx="${PAD + 16}" cy="${HEADER_H / 2}" r="12" fill="#FFC72C"/>`;
     svg += `<text x="${PAD + 16}" y="${HEADER_H / 2 + 5}" text-anchor="middle" font-size="13" font-weight="700" fill="#10131a">T</text>`;
     svg += `<text x="${PAD + 38}" y="${HEADER_H / 2 + 7}" font-size="20" font-weight="700" fill="#ffffff">${escapeXml(title)}</text>`;
@@ -374,23 +391,110 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return out;
   }
 
-  _alertSvg(text) {
-    const msg = `ALERT •  ${text.replace(/\s+/g, " ").trim()}        `;
+  _alertSvg(text, expanded) {
+    if (expanded) return this._alertExpandedSvg(text);
+
     const fontSize = 16;
     const charW = fontSize * 0.6;
-    const textW = msg.length * charW;
-    const dur = Math.max(8, (VIEW_W + textW) / 70);
-    const clipId = `${this._uid}-alert-${++this._alertSeq}`;
+    const clipL = 22; // left edge of the text, just past the red bar
+    const iconCx = VIEW_W - 22; // expand/collapse affordance
+    const availW = iconCx - 16 - clipL; // room for the scrolling text
     const H = ALERT_PANEL_H;
-    let out = `<svg viewBox="0 0 ${VIEW_W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" font-family="${MONO}" role="img" aria-label="Service alert">`;
-    out += `<rect x="0" y="0" width="${VIEW_W}" height="${H}" rx="12" fill="#2a1414" stroke="#5a2a2a" stroke-width="1.5"/>`;
-    out += `<rect x="10" y="${H / 2 - 9}" width="4" height="18" rx="2" fill="#ff5252"/>`;
-    out += `<defs><clipPath id="${clipId}"><rect x="22" y="0" width="${VIEW_W - 34}" height="${H}"/></clipPath></defs>`;
-    out += `<g clip-path="url(#${clipId})">`;
-    out += `<text x="0" y="${H / 2 + 5}" font-size="${fontSize}" fill="#ffd2d2" letter-spacing="0.5">`;
-    out += `<animateTransform attributeName="transform" type="translate" from="${VIEW_W} 0" to="${-textW} 0" dur="${dur}s" repeatCount="indefinite"/>`;
-    out += escapeXml(msg);
-    out += `</text></g></svg>`;
+    const msg = `ALERT •  ${text.replace(/\s+/g, " ").trim()}`;
+    const textW = msg.length * charW;
+    const baseY = H / 2 + 5;
+
+    let inner;
+    if (textW <= availW) {
+      // Fits — show it all, no scrolling.
+      inner = `<text x="${clipL}" y="${baseY}" font-size="${fontSize}" fill="#ffd2d2" letter-spacing="0.5">${escapeXml(msg)}</text>`;
+    } else {
+      // Start with the beginning of the message visible, hold briefly, then
+      // scroll the whole thing to the left and loop. A CSS animation is used
+      // (rather than SMIL) because it reliably starts on dynamically inserted
+      // nodes — SMIL sometimes fails to begin until the page is refreshed.
+      const id = `${this._uid}-${++this._alertSeq}`;
+      const gap = 56; // trailing blank before it loops back to the start
+      const dist = textW + gap;
+      const dur = Math.max(8, dist / 70);
+      const style =
+        `<style>.amsg-${id}{animation:ascroll-${id} ${dur}s linear infinite;}` +
+        `@keyframes ascroll-${id}{0%{transform:translateX(0)}10%{transform:translateX(0)}` +
+        `100%{transform:translateX(-${dist}px)}}</style>`;
+      inner =
+        style +
+        `<defs><clipPath id="aclip-${id}"><rect x="${clipL}" y="0" width="${availW}" height="${H}"/></clipPath></defs>` +
+        `<g clip-path="url(#aclip-${id})">` +
+        `<text class="amsg-${id}" x="${clipL}" y="${baseY}" font-size="${fontSize}" fill="#ffd2d2" letter-spacing="0.5">${escapeXml(msg)}</text>` +
+        `</g>`;
+    }
+
+    return (
+      `<svg viewBox="0 0 ${VIEW_W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block" font-family="${MONO}" role="img" aria-label="Service alert — tap to expand">` +
+      `<rect x="0" y="0" width="${VIEW_W}" height="${H}" fill="#2a1414"/>` +
+      `<rect x="10" y="${H / 2 - 9}" width="4" height="18" rx="2" fill="#ff5252"/>` +
+      inner +
+      this._expandIcon(iconCx, H / 2, false) +
+      `</svg>`
+    );
+  }
+
+  _alertExpandedSvg(text) {
+    const fontSize = 15;
+    const lineH = 21;
+    const padX = 22;
+    const padY = 14;
+    const iconCx = VIEW_W - 22;
+    const availW = iconCx - 16 - padX;
+    const maxChars = Math.max(12, Math.floor(availW / (fontSize * 0.6)));
+    const lines = this._wrapText(text, maxChars);
+    const H = padY * 2 + lines.length * lineH;
+
+    let body = "";
+    lines.forEach((line, i) => {
+      body += `<text x="${padX}" y="${padY + (i + 1) * lineH - 6}" font-size="${fontSize}" fill="#ffd2d2">${escapeXml(line)}</text>`;
+    });
+
+    return (
+      `<svg viewBox="0 0 ${VIEW_W} ${H}" width="100%" preserveAspectRatio="xMidYMid meet" style="display:block" font-family="${MONO}" role="img" aria-label="Service alert (expanded) — tap to collapse">` +
+      `<rect x="0" y="0" width="${VIEW_W}" height="${H}" fill="#2a1414"/>` +
+      `<rect x="10" y="${padY}" width="4" height="${H - padY * 2}" rx="2" fill="#ff5252"/>` +
+      body +
+      this._expandIcon(iconCx, padY + 5, true) +
+      `</svg>`
+    );
+  }
+
+  _expandIcon(cx, cy, minus) {
+    const c = "#ff9b9b";
+    let s = `<rect x="${cx - 7}" y="${cy - 1.5}" width="14" height="3" rx="1.5" fill="${c}"/>`;
+    if (!minus) s += `<rect x="${cx - 1.5}" y="${cy - 7}" width="3" height="14" rx="1.5" fill="${c}"/>`;
+    return s;
+  }
+
+  _wrapText(text, maxChars) {
+    const out = [];
+    for (const para of String(text).split("\n")) {
+      const words = para.trim().split(/\s+/).filter(Boolean);
+      if (!words.length) {
+        out.push("");
+        continue;
+      }
+      let line = "";
+      for (const w of words) {
+        if (!line) line = w;
+        else if ((line + " " + w).length <= maxChars) line += " " + w;
+        else {
+          out.push(line);
+          line = w;
+        }
+        while (line.length > maxChars) {
+          out.push(line.slice(0, maxChars));
+          line = line.slice(maxChars);
+        }
+      }
+      if (line) out.push(line);
+    }
     return out;
   }
 

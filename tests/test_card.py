@@ -55,7 +55,18 @@ def test_card_orders_groups_deterministically() -> None:
 
 def test_card_renders_alert_independently() -> None:
     source = CARD.read_text()
-    # The alert banner lives in its own node and is rebuilt only on text change,
-    # so departure refreshes don't restart the marquee.
+    # The alert banner lives in its own node and is rebuilt only on text/expand
+    # change, so departure refreshes don't restart the marquee.
     assert "mbta-alert" in source
-    assert "_alertText" in source
+    assert "_alertKey" in source
+
+
+def test_alert_uses_css_animation_and_expands() -> None:
+    source = CARD.read_text()
+    # CSS animation (reliable start), not SMIL which sometimes failed to begin.
+    assert "@keyframes ascroll-" in source
+    assert "animateTransform" not in source
+    # Tap-to-expand support.
+    assert "_alertExpanded" in source
+    assert "_alertExpandedSvg" in source
+    assert "_wrapText" in source
