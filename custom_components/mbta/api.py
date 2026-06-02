@@ -67,6 +67,7 @@ class Departure:
             "route_id": self.route_id,
             "headsign": self.headsign,
             "direction": self.direction_name,
+            "direction_id": self.direction_id,
             "time": self.time.isoformat() if self.time else None,
             "minutes": self.minutes,
             "status": self.status,

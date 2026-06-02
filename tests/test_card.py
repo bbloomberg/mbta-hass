@@ -38,6 +38,13 @@ def test_card_supports_grouping_and_filters() -> None:
     assert "cfg.routes" in source and "cfg.destinations" in source
 
 
+def test_card_supports_group_by_direction() -> None:
+    source = CARD.read_text()
+    # Selectable grouping: by terminus/destination or by direction.
+    assert "_groupKey" in source
+    assert 'group_by === "direction"' in source
+
+
 def test_card_renders_alert_independently() -> None:
     source = CARD.read_text()
     # The alert banner lives in its own node and is rebuilt only on text change,

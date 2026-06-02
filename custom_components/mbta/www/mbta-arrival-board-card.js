@@ -59,7 +59,8 @@ const EDITOR_LABELS = {
   alert_entity: "Alert binary sensor (optional)",
   routes: "Routes to show (empty = all)",
   destinations: "Destinations to show (empty = all)",
-  per_destination: "Per-destination count (0 = single combined list)",
+  per_destination: "Per-group count (0 = single combined list)",
+  group_by: "Group by (per-destination mode)",
   rows: "Max rows (flat mode)",
   show_alerts: "Show alert banner",
   show_clock: "Show clock",
@@ -137,6 +138,7 @@ class MbtaArrivalBoardCard extends HTMLElement {
     this._config = {
       rows: 6,
       per_destination: 0,
+      group_by: "destination",
       show_alerts: true,
       show_clock: true,
       ...config,
@@ -176,6 +178,17 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return null;
   }
 
+  _groupKey(d) {
+    // In "direction" mode, branches that share a direction (e.g. Ashmont and
+    // Braintree, both Red Line southbound) collapse into one group while each
+    // row still shows its own terminus. Otherwise group by terminus/headsign.
+    if (this._config.group_by === "direction") {
+      const dir = d.direction_id != null ? d.direction_id : d.direction != null ? d.direction : "";
+      return `${d.route_id || d.route || ""}|dir:${dir}`;
+    }
+    return d.headsign || d.route || "?";
+  }
+
   _computeDepartures(stateObj) {
     const cfg = this._config;
     let deps = (stateObj && stateObj.attributes.departures) || [];
@@ -197,7 +210,7 @@ class MbtaArrivalBoardCard extends HTMLElement {
       // soonest departure so the most imminent destinations sit at the top.
       const groups = new Map();
       for (const d of deps) {
-        const key = d.headsign || d.route || "?";
+        const key = this._groupKey(d);
         if (!groups.has(key)) groups.set(key, []);
         const arr = groups.get(key);
         if (arr.length < per) arr.push(d);
@@ -286,6 +299,8 @@ class MbtaArrivalBoardCard extends HTMLElement {
     if (clock) {
       svg += `<text x="${VIEW_W - PAD - 4}" y="${HEADER_H / 2 + 7}" text-anchor="end" font-size="18" fill="#FFB000" letter-spacing="1">${escapeXml(clock)}</text>`;
     }
+    // Divider under the header (same rule used between destination groups).
+    svg += `<line x1="8" y1="${HEADER_H}" x2="${VIEW_W - 8}" y2="${HEADER_H}" stroke="#3d4759" stroke-width="2.5"/>`;
 
     if (!stateObj) {
       svg += this._centeredMessage("ENTITY NOT FOUND", HEADER_H, rowsH, "#ff5252");
@@ -297,9 +312,9 @@ class MbtaArrivalBoardCard extends HTMLElement {
       const grouped = (Number(this._config.per_destination) || 0) > 0;
       let prevKey = null;
       departures.forEach((d, i) => {
-        const key = d.headsign || d.route || "?";
-        const newGroup = grouped && i > 0 && key !== prevKey;
-        svg += this._row(d, HEADER_H + i * ROW_H, i, newGroup);
+        const key = this._groupKey(d);
+        const boundary = grouped && i > 0 && key !== prevKey;
+        svg += this._row(d, HEADER_H + i * ROW_H, i, boundary);
         prevKey = key;
       });
     }
@@ -312,17 +327,19 @@ class MbtaArrivalBoardCard extends HTMLElement {
     return `<text x="${VIEW_W / 2}" y="${top + h / 2 + 8}" text-anchor="middle" font-size="22" fill="${color}" letter-spacing="2">${escapeXml(text)}</text>`;
   }
 
-  _row(d, y, i, newGroup) {
+  _row(d, y, i, boundary) {
     const cy = y + ROW_H / 2;
     let out = "";
     if (i % 2 === 1) {
       out += `<rect x="6" y="${y}" width="${VIEW_W - 12}" height="${ROW_H}" fill="#0f131c"/>`;
     }
-    if (newGroup) {
-      // Heavier divider between destination groups.
-      out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#3d4759" stroke-width="2.5"/>`;
-    } else {
-      out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" stroke="#1c2230" stroke-width="1"/>`;
+    // The first row sits directly under the header rule, so it needs no line of
+    // its own; group boundaries get the heavier divider, others a thin line.
+    if (i > 0) {
+      const rule = boundary
+        ? 'stroke="#3d4759" stroke-width="2.5"'
+        : 'stroke="#1c2230" stroke-width="1"';
+      out += `<line x1="8" y1="${y}" x2="${VIEW_W - 8}" y2="${y}" ${rule}/>`;
     }
 
     const color = routeColor(d);
@@ -410,6 +427,18 @@ class MbtaArrivalBoardCardEditor extends HTMLElement {
       { name: "routes", selector: { select: { multiple: true, custom_value: true, mode: "list", options: routeOpts } } },
       { name: "destinations", selector: { select: { multiple: true, custom_value: true, mode: "list", options: destOpts } } },
       { name: "per_destination", selector: { number: { min: 0, max: 10, mode: "box" } } },
+      {
+        name: "group_by",
+        selector: {
+          select: {
+            mode: "dropdown",
+            options: [
+              { value: "destination", label: "Terminus / destination (Ashmont, Braintree, …)" },
+              { value: "direction", label: "Direction (combine branches into one group)" },
+            ],
+          },
+        },
+      },
       { name: "rows", selector: { number: { min: 1, max: 20, mode: "box" } } },
       { name: "show_alerts", selector: { boolean: {} } },
       { name: "show_clock", selector: { boolean: {} } },
@@ -447,6 +476,7 @@ class MbtaArrivalBoardCardEditor extends HTMLElement {
       show_clock: true,
       rows: 6,
       per_destination: 0,
+      group_by: "destination",
       ...this._config,
     };
   }

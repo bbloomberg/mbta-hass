@@ -54,8 +54,9 @@ async def test_predictions_serialisation() -> None:
     payload = result["place-test"][0].as_dict()
     assert payload["route"] == "Red Line"
     assert payload["direction"] == "North"
+    assert payload["direction_id"] == 1
     assert payload["cancelled"] is False
-    assert set(payload) >= {"route", "headsign", "direction", "time", "minutes", "status"}
+    assert set(payload) >= {"route", "headsign", "direction", "direction_id", "time", "minutes", "status"}
 
 
 async def test_predictions_empty_stop_list() -> None:

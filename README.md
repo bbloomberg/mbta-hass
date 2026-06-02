@@ -109,7 +109,8 @@ All options:
 | `entity`          | _(required)_          | The stop's `*_next_departure` sensor.                                                            |
 | `alert_entity`    | derived from `entity` | The stop's `*_service_alert` binary sensor (for the alert banner).                              |
 | `title`           | stop name             | Board heading.                                                                                    |
-| `per_destination` | `0`                   | If `> 0`, group by destination and show this many departures **per destination** (e.g. `3` → 3 for Harvard, 3 for Nubian). `0` = a single combined list. Bounded by the **Upcoming departures to show** integration option (raise it if you want more than 5 per destination). |
+| `per_destination` | `0`                   | If `> 0`, group and show this many departures **per group** (e.g. `3` → 3 for Harvard, 3 for Nubian). `0` = a single combined list. Bounded by the **Upcoming departures to show** integration option (raise it if you want more than 5 per group). |
+| `group_by`        | `destination`         | What `per_destination` groups by. `destination` keeps each terminus separate (Ashmont and Braintree are two groups). `direction` combines branches of a direction into one group — e.g. one southbound group showing the next few Ashmont **and** Braintree trains (with their individual names), and one Alewife group. |
 | `rows`            | `6`                   | Max rows in the combined (flat) list. Ignored when `per_destination` is set. Increase the **Upcoming departures** integration option if you want more than 5 predictions. |
 | `routes`          | all                   | List of routes to show (by name or id, e.g. `[Red Line, 1]`). Empty shows all.                  |
 | `destinations`    | all                   | List of destinations/headsigns to show (e.g. `[Harvard, Nubian]`). Empty shows all.             |
