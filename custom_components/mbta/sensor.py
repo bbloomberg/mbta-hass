@@ -122,5 +122,5 @@ class MbtaNextDepartureSensor(MbtaStopEntity, SensorEntity):
             if next_dep and next_dep.time
             else None,
             "next_status": next_dep.status if next_dep else None,
-            "departures": upcoming,
+            "departures": [d.as_dict() for d in upcoming],
         }
