@@ -25,7 +25,7 @@ const HEADER_H = 56;
 const ROW_H = 46;
 const ALERT_PANEL_H = 40;
 const PAD = 12;
-const GROUP_CAP = 24; // safety cap on total rows when grouping by destination
+const GROUP_CAP = 30; // safety cap on total rows when grouping by destination
 const MONO = "'DejaVu Sans Mono','Roboto Mono',ui-monospace,monospace";
 
 const LINE_COLORS = {

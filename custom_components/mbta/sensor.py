@@ -18,6 +18,10 @@ from .const import (
 from .coordinator import MbtaCoordinator
 from .entity import MbtaStopEntity
 
+# Hard cap on how many departures we put into the state attribute, to bound the
+# attribute size regardless of how many destinations a stop serves.
+ATTRIBUTE_DEPARTURE_CAP = 30
+
 # Pick an icon based on the type of the next departure's route.
 _ROUTE_TYPE_ICONS = {
     0: "mdi:tram",
@@ -80,10 +84,33 @@ class MbtaNextDepartureSensor(MbtaStopEntity, SensorEntity):
             return _ROUTE_TYPE_ICONS.get(dep.route_type, "mdi:bus-clock")
         return "mdi:bus-clock"
 
+    def _limited_departures(self, departures):
+        """Up to ``max_departures`` per destination, preserving time order.
+
+        Capping per destination (rather than taking a flat slice of the next N)
+        guarantees every destination is represented even when one direction runs
+        far more often than another — e.g. a bus stop's two directions. This is
+        what the card's ``per_destination`` grouping needs to show the next few
+        of *each* destination; a flat slice would otherwise be dominated by the
+        more frequent direction.
+        """
+        per = self._max_departures
+        counts: dict = {}
+        out = []
+        for dep in departures:
+            key = dep.headsign or dep.route_name
+            if counts.get(key, 0) >= per:
+                continue
+            counts[key] = counts.get(key, 0) + 1
+            out.append(dep)
+            if len(out) >= ATTRIBUTE_DEPARTURE_CAP:
+                break
+        return out
+
     @property
     def extra_state_attributes(self) -> dict:
         departures = self._departures
-        upcoming = [d.as_dict() for d in departures[: self._max_departures]]
+        upcoming = self._limited_departures(departures)
         next_dep = next((d for d in departures if not d.is_cancelled), None)
         return {
             "stop_id": self._stop_id,

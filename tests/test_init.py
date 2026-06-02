@@ -142,6 +142,51 @@ async def test_bus_stop_merges_both_directions(hass: HomeAssistant) -> None:
     assert sensor.attributes["next_headsign"] == "Nubian"
 
 
+async def test_departures_capped_per_destination(hass: HomeAssistant) -> None:
+    """The departures attribute keeps up to max_departures of *each* destination.
+
+    A flat slice would be dominated by the more frequent direction; the per-
+    destination cap keeps both represented so the card can group them.
+    """
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="stop-x",
+        data={"api_key": None, "stops": [{"stop_id": "stop-x", "stop_name": "X"}]},
+        options={"max_departures": 3},
+    )
+    entry.add_to_hass(hass)
+
+    # Harvard runs far more frequently than Nubian (interleaved by time).
+    deps = [
+        _departure("Harvard", 1),
+        _departure("Harvard", 2),
+        _departure("Nubian", 3),
+        _departure("Harvard", 4),
+        _departure("Harvard", 5),
+        _departure("Nubian", 6),
+        _departure("Harvard", 7),
+        _departure("Harvard", 8),
+        _departure("Nubian", 9),
+    ]
+    with patch.multiple(
+        "custom_components.mbta.api.MbtaApiClient",
+        async_get_predictions=AsyncMock(return_value={"stop-x": deps}),
+        async_get_alerts=AsyncMock(return_value={"stop-x": []}),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    sensor = hass.states.get("sensor.x_next_departure")
+    assert sensor is not None
+    shown = sensor.attributes["departures"]
+    headsigns = [d["headsign"] for d in shown]
+    # 3 of each destination (not 3 total dominated by Harvard).
+    assert headsigns.count("Harvard") == 3
+    assert headsigns.count("Nubian") == 3
+    # Time order is preserved within the capped set.
+    assert headsigns[0] == "Harvard" and headsigns[2] == "Nubian"
+
+
 def test_domain_objects_importable() -> None:
     # Guard against accidental rename of the public dataclasses.
     assert Departure.__name__ == "Departure"

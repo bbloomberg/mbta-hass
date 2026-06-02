@@ -65,8 +65,11 @@ After setup, click **Configure** on the integration to adjust:
 
 - **Update interval** — how often predictions/alerts are refreshed (default 60s,
   minimum 20s).
-- **Upcoming departures to show** — length of the `departures` attribute list
-  (default 5).
+- **Upcoming departures to show** — how many upcoming departures the
+  `departures` attribute exposes **per destination** (default 5). Each
+  destination served by the stop is represented up to this many times, so a
+  busier direction can't crowd out a quieter one. This is the ceiling for the
+  card's `per_destination` option.
 
 ### Changing which stops you track
 
@@ -105,7 +108,7 @@ All options:
 | `entity`          | _(required)_          | The stop's `*_next_departure` sensor.                                                            |
 | `alert_entity`    | derived from `entity` | The stop's `*_service_alert` binary sensor (for the alert banner).                              |
 | `title`           | stop name             | Board heading.                                                                                    |
-| `per_destination` | `0`                   | If `> 0`, group by destination and show this many departures **per destination** (e.g. `3` → 3 for Harvard, 3 for Nubian). `0` = a single combined list. |
+| `per_destination` | `0`                   | If `> 0`, group by destination and show this many departures **per destination** (e.g. `3` → 3 for Harvard, 3 for Nubian). `0` = a single combined list. Bounded by the **Upcoming departures to show** integration option (raise it if you want more than 5 per destination). |
 | `rows`            | `6`                   | Max rows in the combined (flat) list. Ignored when `per_destination` is set. Increase the **Upcoming departures** integration option if you want more than 5 predictions. |
 | `routes`          | all                   | List of routes to show (by name or id, e.g. `[Red Line, 1]`). Empty shows all.                  |
 | `destinations`    | all                   | List of destinations/headsigns to show (e.g. `[Harvard, Nubian]`). Empty shows all.             |
