@@ -88,6 +88,46 @@ async def test_invalid_auth(hass: HomeAssistant) -> None:
     assert result["errors"] == {"base": "invalid_auth"}
 
 
+async def test_bus_stop_groups_both_directions(hass: HomeAssistant) -> None:
+    """A bus stop's two same-named directional ids collapse to one selection."""
+    sidney = [
+        {"id": "101", "name": "Massachusetts Ave @ Sidney St"},  # direction 0
+        {"id": "73", "name": "Massachusetts Ave @ Sidney St"},  # direction 1
+    ]
+    with _patch_api(
+        async_get_routes=AsyncMock(return_value=[{"id": "1", "name": "1"}]),
+        async_get_stops_for_route=AsyncMock(return_value=sidney),
+    ):
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_USER}
+        )
+        result = await hass.config_entries.flow.async_configure(result["flow_id"], {})
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"route_type": "3"}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"route_id": "1"}
+        )
+        assert result["step_id"] == "stops"
+        # Both ids share a name -> a single option keyed by the primary id.
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"stops": ["101"]}
+        )
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], {"next_step_id": "finish"}
+        )
+        await hass.async_block_till_done()
+
+    assert result["type"] is FlowResultType.CREATE_ENTRY
+    assert result["data"]["stops"] == [
+        {
+            "stop_id": "101",
+            "stop_name": "Massachusetts Ave @ Sidney St",
+            "stop_ids": ["101", "73"],
+        }
+    ]
+
+
 async def test_reconfigure_removes_a_stop(hass: HomeAssistant) -> None:
     entry = MockConfigEntry(
         domain=DOMAIN,

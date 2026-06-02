@@ -33,6 +33,7 @@ from .const import (
     CONF_ROUTE_TYPE,
     CONF_SCAN_INTERVAL,
     CONF_STOP_ID,
+    CONF_STOP_IDS,
     CONF_STOP_NAME,
     CONF_STOPS,
     DEFAULT_MAX_DEPARTURES,
@@ -62,7 +63,7 @@ class MbtaConfigFlow(ConfigFlow, domain=DOMAIN):
         self._stops: list[dict[str, str]] = []
         self._route_type: int | None = None
         self._route_id: str | None = None
-        self._stop_labels: dict[str, str] = {}
+        self._stop_groups: dict[str, dict] = {}
         self._client: MbtaApiClient | None = None
         self._reconfigure_entry: ConfigEntry | None = None
 
@@ -164,17 +165,24 @@ class MbtaConfigFlow(ConfigFlow, domain=DOMAIN):
         assert self._client is not None
 
         if user_input is not None:
-            selected = user_input[CONF_STOPS]
-            existing = {s[CONF_STOP_ID] for s in self._stops}
-            for stop_id in selected:
-                if stop_id in existing:
+            existing = {s[CONF_STOP_ID]: s for s in self._stops}
+            for primary in user_input[CONF_STOPS]:
+                group = self._stop_groups.get(primary)
+                if not group:
                     continue
-                self._stops.append(
-                    {
-                        CONF_STOP_ID: stop_id,
-                        CONF_STOP_NAME: self._stop_labels.get(stop_id, stop_id),
-                    }
-                )
+                entry: dict[str, Any] = {
+                    CONF_STOP_ID: primary,
+                    CONF_STOP_NAME: group["name"],
+                }
+                if len(group["ids"]) > 1:
+                    entry[CONF_STOP_IDS] = group["ids"]
+                if primary in existing:
+                    # Re-selecting an existing stop upgrades it in place (e.g.
+                    # to add the opposite direction of a bus stop).
+                    existing[primary].update(entry)
+                else:
+                    self._stops.append(entry)
+                    existing[primary] = entry
             if self._reconfigure_entry is not None:
                 return await self.async_step_reconfigure_menu()
             return await self.async_step_finish_or_more()
@@ -187,8 +195,24 @@ class MbtaConfigFlow(ConfigFlow, domain=DOMAIN):
         if not stops:
             return self.async_abort(reason="no_stops")
 
-        self._stop_labels = {s["id"]: s["name"] for s in stops}
-        options = [SelectOptionDict(value=s["id"], label=s["name"]) for s in stops]
+        # Group stops that share a name on this route. MBTA models each bus
+        # direction as a separate stop id with no parent station, so the two
+        # directions show up as two identically-named stops; bundling them lets
+        # one selection track both directions in a single sensor.
+        groups: dict[str, list[str]] = {}
+        for s in stops:
+            groups.setdefault(s["name"], []).append(s["id"])
+
+        self._stop_groups = {}
+        options: list[SelectOptionDict] = []
+        for name, ids in groups.items():
+            ids_sorted = sorted(ids)
+            primary = ids_sorted[0]
+            self._stop_groups[primary] = {"name": name, "ids": ids_sorted}
+            label = name if len(ids_sorted) == 1 else f"{name} (both directions)"
+            options.append(SelectOptionDict(value=primary, label=label))
+        options.sort(key=lambda o: o["label"])
+
         return self.async_show_form(
             step_id="stops",
             data_schema=vol.Schema(

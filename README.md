@@ -51,6 +51,14 @@ Everything is done from the UI — no YAML.
    about. You can repeat this to add stops from multiple routes, then click
    **Finish**.
 
+> **Bus stops and direction:** MBTA models each direction of a bus stop as a
+> separate stop with the same name (and no parent station). The integration
+> bundles same-named stops on a route into a single selection labelled
+> *"… (both directions)"*, so one stop tracks **both** directions in one sensor
+> (e.g. Sidney St shows trains toward Harvard *and* Nubian). Pair this with the
+> card's `per_destination` option to see the next few of each. Subway stations
+> already cover both directions via their parent station.
+
 ### Options
 
 After setup, click **Configure** on the integration to adjust:

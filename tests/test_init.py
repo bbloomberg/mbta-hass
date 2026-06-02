@@ -2,16 +2,33 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock, patch
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.mbta.api import Alert, Departure
 from custom_components.mbta.const import DOMAIN
 
 from .conftest import load_fixture
+
+
+def _departure(headsign: str, minutes: int) -> Departure:
+    return Departure(
+        route_id="1",
+        route_name="1",
+        route_type=3,
+        route_color=None,
+        direction_id=None,
+        direction_name=None,
+        headsign=headsign,
+        time=dt_util.utcnow() + timedelta(minutes=minutes),
+        status=None,
+        is_cancelled=False,
+    )
 
 
 def _entry() -> MockConfigEntry:
@@ -84,6 +101,45 @@ async def test_entities_reflect_data(hass: HomeAssistant) -> None:
     assert "DELAY" in alert.attributes["effects"]
     # Full alert text is surfaced for display.
     assert "Red Line is experiencing" in alert.attributes["alert_text"]
+
+
+async def test_bus_stop_merges_both_directions(hass: HomeAssistant) -> None:
+    """A stop bundling two ids (both bus directions) shows both in one sensor."""
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="101_73",
+        data={
+            "api_key": None,
+            "stops": [
+                {
+                    "stop_id": "101",
+                    "stop_name": "Sidney",
+                    "stop_ids": ["101", "73"],
+                }
+            ],
+        },
+    )
+    entry.add_to_hass(hass)
+
+    # Each underlying id serves one direction.
+    predictions = {
+        "101": [_departure("Harvard", 5)],
+        "73": [_departure("Nubian", 3)],
+    }
+    with patch.multiple(
+        "custom_components.mbta.api.MbtaApiClient",
+        async_get_predictions=AsyncMock(return_value=predictions),
+        async_get_alerts=AsyncMock(return_value={"101": [], "73": []}),
+    ):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+        await hass.async_block_till_done()
+
+    sensor = hass.states.get("sensor.sidney_next_departure")
+    assert sensor is not None
+    headsigns = {d["headsign"] for d in sensor.attributes["departures"]}
+    assert headsigns == {"Harvard", "Nubian"}
+    # The sooner direction (Nubian, 3 min) is surfaced as "next".
+    assert sensor.attributes["next_headsign"] == "Nubian"
 
 
 def test_domain_objects_importable() -> None:
