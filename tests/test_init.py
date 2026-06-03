@@ -187,6 +187,90 @@ async def test_departures_capped_per_destination(hass: HomeAssistant) -> None:
     assert headsigns[0] == "Harvard" and headsigns[2] == "Nubian"
 
 
+class _FakeResources:
+    """Minimal stand-in for a storage-mode Lovelace resource collection."""
+
+    def __init__(self) -> None:
+        self.store = object()  # marks this as storage-mode (editable)
+        self.loaded = True
+        self.items: list[dict] = []
+        self._next = 1
+
+    def async_items(self) -> list[dict]:
+        return list(self.items)
+
+    async def async_get_info(self) -> dict:
+        self.loaded = True
+        return {}
+
+    async def async_create_item(self, data: dict) -> dict:
+        item = {"id": str(self._next), "type": data["res_type"], "url": data["url"]}
+        self._next += 1
+        self.items.append(item)
+        return item
+
+    async def async_update_item(self, item_id: str, updates: dict) -> None:
+        for it in self.items:
+            if it["id"] == item_id:
+                if "url" in updates:
+                    it["url"] = updates["url"]
+                if "res_type" in updates:
+                    it["type"] = updates["res_type"]
+
+    async def async_delete_item(self, item_id: str) -> None:
+        self.items = [it for it in self.items if it["id"] != item_id]
+
+
+async def test_lovelace_resource_registration(hass: HomeAssistant) -> None:
+    from types import SimpleNamespace
+
+    from custom_components.mbta import (
+        CARD_URL_PATH,
+        _async_register_lovelace_resource,
+        _async_remove_lovelace_resource,
+    )
+
+    fake = _FakeResources()
+    hass.data["lovelace"] = SimpleNamespace(resources=fake)
+
+    # First registration creates one module resource.
+    await _async_register_lovelace_resource(hass, f"{CARD_URL_PATH}?v=1.0.0")
+    assert len(fake.items) == 1
+    assert fake.items[0]["type"] == "module"
+    assert fake.items[0]["url"].endswith("?v=1.0.0")
+
+    # A new version updates the same entry in place — no duplicate.
+    await _async_register_lovelace_resource(hass, f"{CARD_URL_PATH}?v=2.0.0")
+    assert len(fake.items) == 1
+    assert fake.items[0]["url"].endswith("?v=2.0.0")
+
+    # A stale duplicate from an earlier version is pruned.
+    fake.items.append({"id": "99", "type": "module", "url": f"{CARD_URL_PATH}?v=old"})
+    await _async_register_lovelace_resource(hass, f"{CARD_URL_PATH}?v=2.0.0")
+    assert len(fake.items) == 1
+
+    # Removal deletes our resource.
+    await _async_remove_lovelace_resource(hass)
+    assert fake.items == []
+
+
+async def test_lovelace_resource_skips_yaml_mode(hass: HomeAssistant) -> None:
+    from types import SimpleNamespace
+
+    from custom_components.mbta import CARD_URL_PATH, _async_register_lovelace_resource
+
+    # A YAML-mode collection has no ``store`` and must be left untouched.
+    class _YamlResources(_FakeResources):
+        def __init__(self) -> None:
+            super().__init__()
+            self.store = None
+
+    yaml_res = _YamlResources()
+    hass.data["lovelace"] = SimpleNamespace(resources=yaml_res)
+    await _async_register_lovelace_resource(hass, f"{CARD_URL_PATH}?v=1.0.0")
+    assert yaml_res.items == []
+
+
 def test_domain_objects_importable() -> None:
     # Guard against accidental rename of the public dataclasses.
     assert Departure.__name__ == "Departure"

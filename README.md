@@ -85,9 +85,11 @@ Click **Reconfigure** on the integration (the ⋮ menu on the integration entry)
 ## The arrival-board card
 
 The integration bundles a custom card (`custom:mbta-arrival-board-card`) and
-auto-registers it as a frontend resource — **no manual resource setup is
-needed**. After installing the integration and restarting, it appears in the
-dashboard card picker as **"MBTA Arrival Board"**.
+auto-registers it — **no manual resource setup is needed**. After installing the
+integration and restarting, it appears in the dashboard card picker as
+**"MBTA Arrival Board"**. On UI-managed dashboards you'll also see a matching
+entry under **Settings → Dashboards → Resources** (managed automatically; it's
+removed if you delete the integration).
 
 > If you don't see it immediately, do a hard refresh (Ctrl/Cmd-Shift-R) to clear
 > the cached dashboard, since the card JS is freshly registered. In the **Android
