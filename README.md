@@ -90,7 +90,11 @@ needed**. After installing the integration and restarting, it appears in the
 dashboard card picker as **"MBTA Arrival Board"**.
 
 > If you don't see it immediately, do a hard refresh (Ctrl/Cmd-Shift-R) to clear
-> the cached dashboard, since the card JS is freshly registered.
+> the cached dashboard, since the card JS is freshly registered. In the **Android
+> companion app**, if the card doesn't appear after an update, clear the app's
+> cache (App info → Storage → Clear cache, or Settings → Companion app → Show
+> debug info → reset frontend cache) once — the card URL is versioned per
+> release so this is only needed if a stale failure was cached.
 
 It has a **visual editor**, so you can configure it entirely from the UI (pick
 the departure sensor, title, rows, toggles) without writing YAML.
